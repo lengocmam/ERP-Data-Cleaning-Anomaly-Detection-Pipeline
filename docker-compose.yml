@@ -1,0 +1,56 @@
+version: "3.9"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ERP Data Cleaning & Anomaly Detection Pipeline
+# Usage:
+#   docker compose up              → run full pipeline (default)
+#   docker compose up jupyter      → launch Jupyter notebook (port 8888)
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+
+  # ── MAIN PIPELINE ───────────────────────────────────────────────────────────
+  # Reads  : ./data/online_retail.xlsx
+  # Outputs: ./output/ERP_Anomaly_Report_<ts>.xlsx
+  #          ./output/erp_cleaned_<ts>.csv
+  #          ./output/anomalies_only_<ts>.csv
+  #          ./output/pipeline.log
+  pipeline:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: erp-pipeline:2.0
+    container_name: erp_pipeline
+    volumes:
+      - ./data:/app/data          # PUT online_retail.xlsx HERE
+      - ./output:/app/output      # outputs land here
+    environment:
+      - IQR_MULTIPLIER=1.5
+      - ZSCORE_THRESHOLD=3.0
+      - ISO_CONTAMINATION=0.03
+      - ANOMALY_EXPORT_LIMIT=10000
+      - LOG_LEVEL=INFO
+    restart: "no"                 # run-once, not a daemon
+
+  # ── JUPYTER NOTEBOOK (optional EDA) ────────────────────────────────────────
+  # Access: http://localhost:8888
+  jupyter:
+    image: erp-pipeline:2.0
+    container_name: erp_jupyter
+    command: >
+      jupyter notebook
+      --ip=0.0.0.0
+      --port=8888
+      --no-browser
+      --allow-root
+      --NotebookApp.token=''
+      --NotebookApp.password=''
+      --notebook-dir=/app/notebooks
+    ports:
+      - "8888:8888"
+    volumes:
+      - ./data:/app/data
+      - ./output:/app/output
+      - ./notebooks:/app/notebooks
+    profiles:
+      - notebook
